@@ -8,10 +8,8 @@ import { TokenValidator, ValidateTokenOptions, getEntraJwksUri } from 'jwt-valid
 import ConsultantApiService from "./ConsultantApiService";
 
 class Identity {
-    private validator: TokenValidator;
-
+    private validatorPromise: Promise<TokenValidator>;
     private requestNumber = 1;  // Number the requests for logging purposes
-
 
     public async validateRequest(req: HttpRequest): Promise<ApiConsultant> {
 
@@ -28,18 +26,22 @@ class Identity {
                 throw new HttpError(401, "Authorization token not found");
             }
 
-    // create a new token validator for the Microsoft Entra common tenant
-    if (!this.validator) {
-        // We need a new validator object which we will continue to use on subsequent
-        // requests so it can cache the Entra ID signing keys
-        // For multitenant, use:
-        // const entraJwksUri = await getEntraJwksUri();
-        const entraJwksUri = await getEntraJwksUri(AAD_APP_TENANT_ID);
-        this.validator = new TokenValidator({
-            jwksUri: entraJwksUri
-        });
-        console.log ("Token validator created");
-    }
+            // Always use the same validator, stored in the validatorPromise value, to allow caching
+            // and avoid extra calls to get the EntraID JWKS URI
+            let validator = await (async (): Promise<TokenValidator> => {
+                if (!this.validatorPromise) {
+                    this.validatorPromise = new Promise(async (resolve) => {
+                        const { AAD_APP_TENANT_ID } = process.env;
+                        const entraJwksUri = await getEntraJwksUri(AAD_APP_TENANT_ID);
+                        let validator = new TokenValidator({
+                            jwksUri: entraJwksUri
+                        });
+                        console.log("Token validator created");
+                        resolve(validator);
+                    });
+                }
+                return this.validatorPromise;
+            })();        
 
             const options: ValidateTokenOptions = {
                 allowedTenants: [AAD_APP_TENANT_ID],
@@ -49,7 +51,7 @@ class Identity {
             };
 
             // validate the token
-            const validToken = await this.validator.validateToken(token, options);
+            const validToken = await validator.validateToken(token, options);
 
             userId = validToken.oid;
             userName = validToken.name;
@@ -80,7 +82,7 @@ class Identity {
     }
 
     private async createConsultantForUser(userId: string, userName: string,
-        userEmail: string): Promise<ApiConsultant> {
+            userEmail: string): Promise<ApiConsultant> {
 
         // Create a new consultant record for this user with default values
         const consultant: Consultant = {
