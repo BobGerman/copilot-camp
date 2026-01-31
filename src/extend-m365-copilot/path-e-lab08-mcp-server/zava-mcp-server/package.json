@@ -16,6 +16,7 @@
     "init-data": "npm run build && node data/generate-data.js && node dist/src/scripts/initializeData.js",
     "init-data-prod": "npm run build && node dist/src/scripts/initializeAzureData.js",
     "start:mcp-http": "npm run build && node dist/src/mcp-server-http.js",
+    "start:mcp-http:public": "HOST=0.0.0.0 npm run start:mcp-http",
     "inspector": "npx @modelcontextprotocol/inspector --transport http --server-url http://localhost:3001/mcp/messages",
     "inspector-prod": "npx @modelcontextprotocol/inspector --transport http --server-url https://claims-mcp-app.proudglacier-5e06022c.eastus.azurecontainerapps.io/mcp/messages",
     "test": "jest",
